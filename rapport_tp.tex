@@ -361,11 +361,11 @@ où $N$ est le nombre d'échantillons du signal.
 \textbf{Analyse des résultats :}
 
 \begin{itemize}
-    \item \textbf{Bruit Blanc :} DSP théoriquement plate ($S_X(\nu) = \sigma_b^2 = 2.0$). La courbe théorique (ligne noire horizontale) sert de référence. Les deux méthodes donnent des résultats quasi-identiques avec des fluctuations autour de la valeur théorique dues à la variance de l'estimateur. Les estimateurs sont non biaisés asymptotiquement.
+    \item \textbf{Bruit Blanc :} DSP théoriquement plate ($S_X(\nu) = \sigma_b^2 = 2.0$). La courbe théorique (ligne noire horizontale) sert de référence. Les deux méthodes donnent des résultats quasi-identiques avec des fluctuations autour de la valeur théorique dues à la variance de l'estimateur. Les estimateurs sont non biaisés asymptotiquement. L'échelle logarithmique permet de mieux observer les fluctuations autour de la valeur moyenne.
     
-    \item \textbf{AR(1) :} DSP théorique : $S_X(\nu) = \frac{\sigma_e^2}{|1 + a e^{-j2\pi\nu}|^2}$. La courbe théorique (noire pointillée) montre le comportement passe-bas caractéristique pour $a = 0.8 > 0$. Le corrélogramme et le périodogramme suivent bien la forme attendue et sont très proches de la DSP théorique. Les deux méthodes concordent parfaitement.
+    \item \textbf{AR(1) :} DSP théorique : $S_X(\nu) = \frac{\sigma_e^2}{|1 - a e^{-j2\pi\nu}|^2}$. La courbe théorique (noire pointillée) montre le comportement passe-bas caractéristique pour $a = 0.8 > 0$. Le corrélogramme et le périodogramme suivent bien la forme attendue et sont très proches de la DSP théorique. Les deux méthodes concordent parfaitement. L'échelle logarithmique révèle une large gamme dynamique ($>20$ dB entre basses et hautes fréquences).
     
-    \item \textbf{Sinusoïde :} DSP théorique : deux pics de Dirac en $\pm \nu_0 = \pm 0.1$ (ligne verticale noire). Les deux méthodes montrent un pic à la fréquence théorique $\nu_0 = 0.1$. Cependant, le pic est étalé (non infiniment fin) en raison de la résolution fréquentielle limitée par $N = 256$ échantillons (effet de fenêtrage rectangulaire : convolution avec un sinus cardinal dans le domaine fréquentiel).
+    \item \textbf{Sinusoïde :} DSP théorique : deux pics de Dirac en $\pm \nu_0 = \pm 0.1$, mais seul le pic à $+\nu_0$ est visible sur $[0, 0.5]$ (ligne verticale noire). Les deux méthodes montrent un pic à la fréquence théorique $\nu_0 = 0.1$. Le pic est étalé (non infiniment fin) en raison de la résolution fréquentielle limitée par $N = 256$ échantillons (effet de fenêtrage rectangulaire : convolution avec un sinus cardinal dans le domaine fréquentiel). L'échelle logarithmique met en évidence le plancher de bruit numérique en dehors du pic.
 \end{itemize}
 
 \textbf{Observations techniques :}
@@ -375,5 +375,68 @@ où $N$ est le nombre d'échantillons du signal.
     \item Le corrélogramme nécessite $p_{\max} \leq N-1$ pour éviter des valeurs d'autocorrélation non définies.
     \item Les deux méthodes sont équivalentes asymptotiquement (théorème de Wiener-Khintchine).
 \end{itemize}
+
+\subsubsection{Moyennage pour réduire la variance (Checkpoint 8)}
+
+Le périodogramme et le corrélogramme sont des estimateurs asymptotiquement non biaisés de la DSP. Cependant, leur variance ne converge pas vers zéro quand $N \to \infty$ (sauf pour des processus totalement prédictibles). Pour des processus aléatoires, la variance reste constante, ce qui rend l'estimation peu fiable.
+
+\textbf{Solution : Moyennage sur $K$ segments}
+
+La méthode consiste à :
+\begin{enumerate}
+    \item Découper le signal de longueur $N$ en $K$ segments de longueur $N/K$.
+    \item Estimer la DSP sur chaque segment.
+    \item Moyenner les $K$ estimations.
+\end{enumerate}
+
+\textbf{Résultat théorique :} Si les segments sont décorrélés, la variance de l'estimateur moyenné est divisée par $K$ :
+\[
+\text{Var}[\hat{S}_X^{(K)}(\nu)] = \frac{1}{K} \text{Var}[\hat{S}_X(\nu)]
+\]
+
+\textbf{Compromis :} Réduire la variance dégrade la résolution fréquentielle, car les segments sont plus courts :
+\[
+\Delta \nu = \frac{1}{N/K} = \frac{K}{N}
+\]
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/dsp_moyennage_variance.png}
+    \caption{Effet du moyennage sur $K$ segments ($N=4096$, $N_{\text{fft}}=512$). Ligne 1 : Bruit blanc. Ligne 2 : AR(1) (échelle log). Ligne 3 : Sinusoïde (échelle log). De gauche à droite : $K \in \{1, 2, 4, 8\}$.}
+    \label{fig:dsp_moyennage}
+\end{figure}
+
+\textbf{Observations :}
+
+\begin{itemize}
+    \item \textbf{Bruit Blanc :} 
+    \begin{itemize}
+        \item $K=1$ : Fortes fluctuations autour de $\sigma_b^2 = 2.0$.
+        \item $K=8$ : Estimation beaucoup plus lisse, proche de la valeur théorique.
+        \item La variance mesurée diminue bien d'un facteur proche de $K$ (confirmation expérimentale).
+    \end{itemize}
+    
+    \item \textbf{AR(1) :}
+    \begin{itemize}
+        \item Le moyennage réduit fortement les fluctuations, notamment aux hautes fréquences.
+        \item La forme globale (comportement passe-bas) reste préservée.
+        \item Variance réduite selon le facteur $K$ attendu.
+    \end{itemize}
+    
+    \item \textbf{Sinusoïde :}
+    \begin{itemize}
+        \item $K=1$ : Pic bien localisé à $\nu_0 = 0.1$, mais plancher de bruit fluctuant.
+        \item $K$ croissant : Le plancher de bruit devient plus lisse, mais le pic s'élargit (perte de résolution fréquentielle).
+        \item Pour $K=8$, le pic est étalé sur plusieurs bins fréquentiels (résolution dégradée : $\Delta \nu = 8/4096 \approx 0.002$ au lieu de $1/4096 \approx 0.00024$).
+    \end{itemize}
+\end{itemize}
+
+\textbf{Méthodes classiques :}
+\begin{itemize}
+    \item \textbf{Bartlett :} Segments non chevauchants, fenêtre rectangulaire (implémenté ici).
+    \item \textbf{Welch :} Segments chevauchants (typiquement 50\%), fenêtrage (Hann, Hamming) pour réduire les lobes secondaires.
+\end{itemize}
+
+\textbf{Conclusion :} Le moyennage est essentiel pour réduire la variance de l'estimation spectrale, mais il induit un compromis variance-résolution. Pour des applications nécessitant une haute résolution fréquentielle (détection de raies spectrales), on privilégiera $K$ faible. Pour une estimation robuste de l'enveloppe spectrale (parole, bruit), on préférera $K$ élevé.
 
 \end{document}
