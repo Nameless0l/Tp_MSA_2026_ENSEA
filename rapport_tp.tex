@@ -439,4 +439,87 @@ La méthode consiste à :
 
 \textbf{Conclusion :} Le moyennage est essentiel pour réduire la variance de l'estimation spectrale, mais il induit un compromis variance-résolution. Pour des applications nécessitant une haute résolution fréquentielle (détection de raies spectrales), on privilégiera $K$ faible. Pour une estimation robuste de l'enveloppe spectrale (parole, bruit), on préférera $K$ élevé.
 
+\subsubsection{Fenêtrage temporel (Checkpoint 9)}
+
+Le fenêtrage permet de contrôler les lobes secondaires et la résolution fréquentielle lors de l'estimation spectrale. Une fenêtre temporelle $w[n]$ est appliquée au signal avant calcul de la FFT : $x_w[n] = x[n] \cdot w[n]$.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/dsp_fenetrage.png}
+    \caption{Effet de différentes fenêtres sur l'estimation spectrale d'une sinusoïde ($\nu_0 = 0.1$, $N=256$, $N_{\text{fft}}=512$). Ligne 1 : Rectangulaire, Triangulaire, Hann. Ligne 2 : Hamming, Blackman.}
+    \label{fig:dsp_fenetrage}
+\end{figure}
+
+\textbf{Propriétés des fenêtres testées :}
+
+\begin{itemize}
+    \item \textbf{Rectangulaire :} $w[n] = 1$
+    \begin{itemize}
+        \item Résolution maximale (lobe principal $2/N$).
+        \item Lobes secondaires élevés ($-13.3$ dB, pente $-20$ dB/décade).
+        \item Convient pour signaux à forte SNR ou quand la résolution est critique.
+    \end{itemize}
+    
+    \item \textbf{Triangulaire (Bartlett) :} $w[n] = 1 - |1 - \frac{2n+1}{N}|$
+    \begin{itemize}
+        \item Lobe principal $4/N$ (perte de résolution d'un facteur 2).
+        \item Lobes secondaires atténués ($-26.5$ dB, pente $-40$ dB/décade).
+        \item Compromis résolution/rejection modéré.
+    \end{itemize}
+    
+    \item \textbf{Hann :} $w[n] = \frac{1 - \cos(\frac{2\pi n}{N-1})}{2}$
+    \begin{itemize}
+        \item Lobe principal $4/N$.
+        \item Forte atténuation des lobes ($-31.5$ dB, pente $-60$ dB/décade).
+        \item Excellent compromis général, très utilisée en pratique.
+    \end{itemize}
+    
+    \item \textbf{Hamming :} $w[n] = 0.54 - 0.46 \cos(\frac{2\pi n}{N-1})$
+    \begin{itemize}
+        \item Lobe principal $4/N$.
+        \item Lobes secondaires très faibles ($-42.7$ dB), mais pente faible ($-20$ dB/décade).
+        \item Optimal pour minimiser le pic du lobe secondaire.
+        \item Préférée pour détecter harmoniques proches.
+    \end{itemize}
+    
+    \item \textbf{Blackman :} $w[n] = 0.42 - 0.5 \cos(\frac{2\pi n}{N-1}) + 0.08 \cos(\frac{4\pi n}{N-1})$
+    \begin{itemize}
+        \item Lobe principal large ($6/N$, perte de résolution d'un facteur 3).
+        \item Lobes secondaires très faibles ($-58.1$ dB, pente $-60$ dB/décade).
+        \item Meilleure rejection des lobes, au prix de la résolution.
+    \end{itemize}
+\end{itemize}
+
+\textbf{Observations sur la figure \ref{fig:dsp_fenetrage} :}
+
+\begin{itemize}
+    \item La fenêtre rectangulaire produit un pic étroit mais avec des lobes secondaires prononcés (fuite spectrale importante).
+    \item Hann, Hamming et Blackman réduisent progressivement les lobes secondaires au prix d'un élargissement du pic principal.
+    \item Pour une sinusoïde pure, Blackman donne la meilleure suppression des artefacts hors du pic.
+\end{itemize}
+
+\textbf{Critères de choix de fenêtre :}
+
+\begin{itemize}
+    \item \textbf{Signaux à raies (sons voisés) :} Hann ou Hamming (bon compromis résolution/rejection). Utiliser Hamming si harmoniques très proches.
+    
+    \item \textbf{Signaux peu structurés (sons non voisés, bruit) :} Rectangulaire pour maximiser la résolution fréquentielle.
+    
+    \item \textbf{Mesure d'amplitude d'une harmonique :} Normaliser la fenêtre par $\sum_{n} w[n]$ pour préserver l'amplitude. La hauteur du pic donne alors directement l'amplitude de la composante.
+    
+    \item \textbf{Mesure de puissance (bruit blanc) :} Normaliser par $\sum_{n} w[n]^2$ pour retrouver la variance correcte dans la DSP estimée.
+    
+    \item \textbf{Mesure précise de fréquence (pitch) :} Rectangulaire ou Hamming (lobe principal le plus étroit possible).
+\end{itemize}
+
+\textbf{Application à la parole :}
+
+\begin{itemize}
+    \item \textbf{Sons voisés :} Fenêtre de Hann ou Hamming pour l'analyse harmonique (formants). Permet de séparer les harmoniques proches tout en limitant les interférences entre raies.
+    
+    \item \textbf{Sons non voisés :} Fenêtre rectangulaire acceptable car le spectre est continu (pas de raies à séparer).
+    
+    \item \textbf{Détection voisé/non voisé par DSP :} Calculer le rapport énergie dans les basses fréquences / énergie totale. Un son voisé présente des pics marqués (harmoniques), un son non voisé a un spectre plat. Critère similaire à celui basé sur l'autocorrélation (présence d'un pic secondaire), mais moins robuste au bruit.
+\end{itemize}
+
 \end{document}
