@@ -1,0 +1,330 @@
+\documentclass[12pt,a4paper]{article}
+
+% Packages essentiels
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{lastpage}
+
+% Configuration de la page
+\geometry{
+    top=2.5cm,
+    bottom=2.5cm,
+    left=2.5cm,
+    right=2.5cm,
+    headheight=30pt
+}
+
+% Couleurs ENSEA
+\definecolor{ensearose}{RGB}{200,16,82}
+\definecolor{enseagris}{RGB}{100,100,100}
+
+% En-tête et pied de page
+\pagestyle{fancy}
+\fancyhf{}
+
+% En-tête avec logo
+\fancyhead[L]{\includegraphics[height=1.2cm]{logo/logo_ensea.png}}
+\fancyhead[R]{\textcolor{enseagris}{\small Modélisation des Signaux Aléatoires - MSA}}
+
+% Pied de page
+\fancyfoot[L]{\textcolor{enseagris}{\small MBASSI EWOLO \& ABDOULKADER - 2G3TD1P5}}
+\fancyfoot[R]{\textcolor{enseagris}{\small \thepage/\pageref{LastPage} - \today}}
+
+% Lignes de séparation
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\footrulewidth}{0.5pt}
+
+% Configuration des liens
+\hypersetup{
+    colorlinks=true,
+    linkcolor=ensearose,
+    urlcolor=ensearose,
+    citecolor=ensearose
+}
+
+%==============================================================================
+% DÉBUT DU DOCUMENT
+%==============================================================================
+
+\begin{document}
+
+%==============================================================================
+% PAGE DE GARDE
+%==============================================================================
+
+\begin{titlepage}
+    \vspace*{-3.05cm}
+    \hspace*{-3.25cm}
+    \includegraphics[width=5cm]{logo/gauche-logo.png}
+    
+    \vspace{4cm}
+    
+    \centering
+    
+    % Titre du TP
+    {\Huge\bfseries TP Majeure Signal S7\\
+Modélisation des Signaux Aléatoires\par}
+    \vspace{0.5cm}
+    {\LARGE\bfseries Compression de la Parole par Prédiction Linéaire (LPC)\par}
+    
+    \vfill
+    
+    % Bande colorée avec auteurs
+    \begin{tikzpicture}
+        \fill[ensearose] (-8,0) rectangle (8,2);
+        \node[white, font=\large, text width=14cm, align=center] at (0,1) {
+            \textbf{Réalisé par :}\\
+            MBASSI EWOLO Loïc Aron\\
+            ABDOULKADER MOHAMED Yacoub
+        };
+    \end{tikzpicture}
+    
+    \vspace{1cm}
+    
+    % Date et groupe
+    {\large Groupe : 2G3TD1P5\par}
+    \vspace{0.3cm}
+    {\large \today\par}
+    
+\end{titlepage}
+
+% TABLE DES MATIÈRES
+\tableofcontents
+\newpage
+
+%==============================================================================
+% CONTENU DU RAPPORT - Séance 1 :
+%==============================================================================
+
+\section{Séance 1 : Estimation de l'Autocorrélation}
+
+\subsection{Génération de Signaux Tests}
+
+Trois signaux artificiels ont été générés pour tester les estimateurs d'autocorrélation :
+
+\begin{itemize}
+    \item \textbf{Bruit Blanc Gaussien :} Écart-type $\sigma_b = 2.0$ (N=256 échantillons).
+    \begin{equation}
+        X[n] \sim \mathcal{N}(0, \sigma_b^2)
+    \end{equation}
+    
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.9\linewidth]{figures/bruit_blanc_signal.png}
+        \caption{Réalisation d'un bruit blanc gaussien.}
+        \label{fig:bruit_blanc_signal}
+    \end{figure}
+    
+    \item \textbf{Processus AR(1) :} Paramètre $a = 0.8$, variance de l'innovation $\sigma_e^2 = 4$.
+    \begin{equation}
+        X[n] = -a \cdot X[n-1] + B[n], \quad B[n] \sim \mathcal{N}(0, \sigma_e^2)
+    \end{equation}
+    La variance théorique du processus est $\gamma_X[0] = \frac{\sigma_e^2}{1-a^2} = 11.11$.
+    
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.9\linewidth]{figures/ar1_signal.png}
+        \caption{Réalisation d'un processus AR(1) montrant les corrélations temporelles.}
+        \label{fig:ar1_signal}
+    \end{figure}
+    
+    \item \textbf{Sinusoïde à Phase Aléatoire :} Fréquence réduite $\nu_0 = 0.1$, amplitude $A = 3.0$.
+    \begin{equation}
+        X[n] = A \sin(2\pi \nu_0 n + \phi), \quad \phi \sim \mathcal{U}[0, 2\pi)
+    \end{equation}
+    
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.9\linewidth]{figures/sinusoide_signal.png}
+        \caption{Sinusoïde à phase aléatoire, processus périodique stationnaire.}
+        \label{fig:sinusoide_signal}
+    \end{figure}
+\end{itemize}
+
+Ces trois signaux représentent des cas typiques : bruit blanc (pas de corrélation), AR(1) (corrélation décroissante exponentielle), et sinusoïde (corrélation périodique).
+
+\subsection{Estimateur Biaisé de l'Autocorrélation}
+
+L'estimateur biaisé de l'autocorrélation est défini par :
+\begin{equation}
+    \hat{\gamma}_{X,b}[p] = \frac{1}{N} \sum_{k=0}^{N-1-|p|} x[k] x[k+|p|]
+\end{equation}
+
+\subsubsection{Résultats}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/autocorr_biaisee_tests.png}
+    \caption{Estimateur biaisé de l'autocorrélation pour les trois signaux tests.}
+    \label{fig:autocorr_biaisee_tests}
+\end{figure}
+
+\textbf{Observations :}
+\begin{itemize}
+    \item \textbf{Bruit Blanc :} L'autocorrélation s'annule rapidement pour $p > 0$, conformément à la théorie ($\gamma[p] = \sigma^2 \delta[p]$).
+    \item \textbf{AR(1) :} Décroissance exponentielle observée, cohérente avec $\gamma[p] = \gamma[0] \cdot a^{|p|}$.
+    \item \textbf{Sinusoïde :} Structure périodique visible, caractéristique d'un signal sinusoïdal.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/autocorr_biaisee_ar1_theo.png}
+    \caption{Comparaison entre l'estimateur biaisé et l'autocorrélation théorique pour un processus AR(1).}
+    \label{fig:autocorr_biaisee_ar1_theo}
+\end{figure}
+
+L'estimateur biaisé converge bien vers les valeurs théoriques pour le processus AR(1). Le biais se manifeste par une sous-estimation croissante aux grands décalages $p$, due au facteur de normalisation $1/N$ fixe.
+
+\subsection{Estimateur Non-Biaisé de l'Autocorrélation}
+
+L'estimateur non-biaisé de l'autocorrélation est défini par :
+\begin{equation}
+    \hat{\gamma}_{X,nb}[p] = \frac{1}{N-|p|} \sum_{k=0}^{N-1-|p|} x[k] x[k+|p|]
+\end{equation}
+
+\subsubsection{Résultats}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/autocorr_non_biaisee_tests.png}
+    \caption{Estimateur non-biaisé de l'autocorrélation pour les trois signaux tests.}
+    \label{fig:autocorr_non_biaisee_tests}
+\end{figure}
+
+\subsection{Comparaison des Estimateurs}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/autocorr_comparaison_biais.png}
+    \caption{Comparaison entre les estimateurs biaisé et non-biaisé pour les trois signaux tests.}
+    \label{fig:autocorr_comparaison}
+\end{figure}
+
+\textbf{Analyse :}
+\begin{itemize}
+    \item \textbf{Bruit Blanc :} Les deux estimateurs donnent des résultats similaires. L'estimateur non-biaisé présente une variance légèrement plus élevée aux grands décalages.
+    
+    \item \textbf{AR(1) :} L'estimateur biaisé suit mieux la courbe théorique aux grands décalages. L'estimateur non-biaisé présente des oscillations importantes quand $p \to N$, dues à la variance qui explose avec le facteur $1/(N-p)$.
+    
+    \item \textbf{Sinusoïde :} Les deux estimateurs capturent bien la périodicité. L'estimateur non-biaisé montre plus de fluctuations aux grands décalages.
+\end{itemize}
+
+\textbf{Conclusion :} Pour les signaux de parole (segments courts, $N=256$), l'estimateur biaisé est préférable car il présente une variance plus faible, critère important pour des fenêtres temporelles courtes.
+
+\subsection{Caractérisation des signaux voisés et non voisés}
+
+\subsubsection{Analyse d'un signal voisé}
+
+Un signal voisé (ex: voyelle) est caractérisé par une structure quasi-périodique due aux vibrations des cordes vocales. Cette périodicité se reflète dans la fonction d'autocorrélation normalisée.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/signal_voise_autocorr.png}
+    \caption{Signal voisé et son autocorrélation normalisée. Le second pic indique la pseudo-période $T_0$ (pitch).}
+    \label{fig:signal_voise}
+\end{figure}
+
+\textbf{Observations :}
+\begin{itemize}
+    \item Le signal présente une structure répétitive sur la fenêtre temporelle.
+    \item L'autocorrélation normalisée présente un second pic marqué (amplitude $> 0.5$) à la position $p = T_0$.
+    \item La pseudo-période $T_0$ permet de calculer la fréquence fondamentale (pitch) : $F_0 = 1/T_0$.
+\end{itemize}
+
+\subsubsection{Analyse d'un signal non voisé}
+
+Un signal non voisé (ex: consonnes fricatives) est assimilable à du bruit filtré. L'autocorrélation décroît rapidement.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/signal_nonvoise_autocorr.png}
+    \caption{Signal non voisé et son autocorrélation normalisée. Absence de structure périodique.}
+    \label{fig:signal_nonvoise}
+\end{figure}
+
+\textbf{Observations :}
+\begin{itemize}
+    \item Le signal ressemble à du bruit aléatoire.
+    \item L'autocorrélation normalisée décroît rapidement vers zéro (pas de second pic significatif).
+    \item Amplitude du second pic $< 0.3$ (typiquement).
+\end{itemize}
+
+\subsubsection{Critère de détection : fonction \texttt{isvoiced}}
+
+On utilise l'amplitude du second maximum de l'autocorrélation normalisée comme critère de décision :
+
+\begin{equation}
+\text{isvoiced}(X) = 
+\begin{cases}
+\text{True} & \text{si } \max_{p > 0} \left( \frac{\hat{\gamma}_X[p]}{\hat{\gamma}_X[0]} \right) > \text{seuil} \\
+\text{False} & \text{sinon}
+\end{cases}
+\end{equation}
+
+Le seuil expérimental est fixé à $0.3$ après étude de plusieurs signaux voisés et non voisés.
+
+\textbf{Tests :}
+\begin{itemize}
+    \item Signal voisé : \texttt{isvoiced} retourne \texttt{True} (\checkmark).
+    \item Signal non voisé : \texttt{isvoiced} retourne \texttt{False} (\checkmark).
+\end{itemize}
+
+\subsection{Pour aller plus loin : Calcul rapide par FFT}
+
+\subsubsection{Principe théorique}
+
+Le théorème de Wiener-Khintchine établit que la densité spectrale de puissance $S_X(\nu)$ est la transformée de Fourier de l'autocorrélation :
+
+\begin{equation}
+S_X(\nu) = \text{TF}\{\gamma_X[p]\}
+\end{equation}
+
+Inversement :
+
+\begin{equation}
+\gamma_X[p] = \text{TF}^{-1}\{S_X(\nu)\} = \text{TF}^{-1}\{|X(\nu)|^2\}
+\end{equation}
+
+où $X(\nu)$ est la transformée de Fourier du signal. Cette relation permet de calculer l'autocorrélation via :
+
+\begin{equation}
+\gamma_X[p] = \text{IFFT}\left\{\text{FFT}(x) \cdot \text{FFT}^*(x)\right\} = \text{IFFT}\left\{|\text{FFT}(x)|^2\right\}
+\end{equation}
+
+\subsubsection{Complexité algorithmique}
+
+\begin{itemize}
+    \item \textbf{Méthode directe :} $\mathcal{O}(N \cdot p_{\text{max}})$ opérations.
+    \item \textbf{Méthode FFT :} $\mathcal{O}(N \log N)$ opérations (grâce à l'algorithme de Cooley-Tukey).
+\end{itemize}
+
+Pour $N = 256$ et $p_{\text{max}} = 100$, l'accélération attendue est d'un facteur $\approx 10$-$20$.
+
+\subsubsection{Résultats expérimentaux}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/autocorr_fft_comparison.png}
+    \caption{Comparaison entre la méthode directe et la méthode FFT. Les deux courbes sont superposées (erreur numérique négligeable).}
+    \label{fig:autocorr_fft}
+\end{figure}
+
+\textbf{Observations :}
+\begin{itemize}
+    \item Les deux méthodes produisent des résultats identiques (à la précision machine près).
+    \item Le temps de calcul par FFT est réduit d'un facteur $\times 10$ à $\times 20$ selon $N$ et $p_{\text{max}}$.
+    \item Cette optimisation est cruciale pour le traitement en temps réel de la parole.
+\end{itemize}
+
+\end{document}
