@@ -327,4 +327,53 @@ Pour $N = 256$ et $p_{\text{max}} = 100$, l'accélération attendue est d'un fac
     \item Cette optimisation est cruciale pour le traitement en temps réel de la parole.
 \end{itemize}
 
+\section{Séance 2 : Analyse Spectrale}
+
+\subsection{Estimation de la DSP : Corrélogramme et Périodogramme}
+
+\subsubsection{Principes des deux méthodes}
+
+La densité spectrale de puissance (DSP) d'un processus $X$ peut être estimée par deux approches équivalentes :
+
+\textbf{1. Corrélogramme :} Basé sur le théorème de Wiener-Khintchine :
+\begin{equation}
+\hat{S}_X^{\text{corr}}(\nu) = \text{TFD}\{\hat{\gamma}_X[p]\}
+\end{equation}
+
+où $\hat{\gamma}_X[p]$ est l'estimateur biaisé de l'autocorrélation. L'autocorrélation est symétrisée avant la FFT : $[\hat{\gamma}_X[0], \hat{\gamma}_X[1], \ldots, \hat{\gamma}_X[p_{\max}], \hat{\gamma}_X[p_{\max}-1], \ldots, \hat{\gamma}_X[1]]$.
+
+\textbf{2. Périodogramme :} Calcul direct dans le domaine fréquentiel :
+\begin{equation}
+\hat{S}_X^{\text{per}}(\nu) = \frac{1}{N} \left| \text{TFD}(x) \right|^2
+\end{equation}
+
+où $N$ est le nombre d'échantillons du signal.
+
+\subsubsection{Résultats expérimentaux}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/dsp_comparaison_methodes.png}
+    \caption{Comparaison des estimateurs de DSP (corrélogramme vs périodogramme) pour trois types de signaux. Les DSP théoriques sont superposées en noir pointillé.}
+    \label{fig:dsp_comparison}
+\end{figure}
+
+\textbf{Analyse des résultats :}
+
+\begin{itemize}
+    \item \textbf{Bruit Blanc :} DSP théoriquement plate ($S_X(\nu) = \sigma_b^2 = 2.0$). La courbe théorique (ligne noire horizontale) sert de référence. Les deux méthodes donnent des résultats quasi-identiques avec des fluctuations autour de la valeur théorique dues à la variance de l'estimateur. Les estimateurs sont non biaisés asymptotiquement.
+    
+    \item \textbf{AR(1) :} DSP théorique : $S_X(\nu) = \frac{\sigma_e^2}{|1 + a e^{-j2\pi\nu}|^2}$. La courbe théorique (noire pointillée) montre le comportement passe-bas caractéristique pour $a = 0.8 > 0$. Le corrélogramme et le périodogramme suivent bien la forme attendue et sont très proches de la DSP théorique. Les deux méthodes concordent parfaitement.
+    
+    \item \textbf{Sinusoïde :} DSP théorique : deux pics de Dirac en $\pm \nu_0 = \pm 0.1$ (ligne verticale noire). Les deux méthodes montrent un pic à la fréquence théorique $\nu_0 = 0.1$. Cependant, le pic est étalé (non infiniment fin) en raison de la résolution fréquentielle limitée par $N = 256$ échantillons (effet de fenêtrage rectangulaire : convolution avec un sinus cardinal dans le domaine fréquentiel).
+\end{itemize}
+
+\textbf{Observations techniques :}
+\begin{itemize}
+    \item Les fréquences affichées sont restreintes à $[0, 0.5]$ (théorème de Shannon : pas d'information au-delà de $F_e/2$).
+    \item La normalisation du périodogramme utilise $N$ (nombre d'échantillons du signal), pas $N_{\text{fft}}$.
+    \item Le corrélogramme nécessite $p_{\max} \leq N-1$ pour éviter des valeurs d'autocorrélation non définies.
+    \item Les deux méthodes sont équivalentes asymptotiquement (théorème de Wiener-Khintchine).
+\end{itemize}
+
 \end{document}
