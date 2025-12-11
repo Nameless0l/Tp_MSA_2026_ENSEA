@@ -522,4 +522,102 @@ Le fenêtrage permet de contrôler les lobes secondaires et la résolution fréq
     \item \textbf{Détection voisé/non voisé par DSP :} Calculer le rapport énergie dans les basses fréquences / énergie totale. Un son voisé présente des pics marqués (harmoniques), un son non voisé a un spectre plat. Critère similaire à celui basé sur l'autocorrélation (présence d'un pic secondaire), mais moins robuste au bruit.
 \end{itemize}
 
+%==============================================================================
+% SÉANCE 3
+%==============================================================================
+
+\section{Séance 3 : Prédiction Linéaire}
+
+\subsection{Implémentation de l'algorithme de Yule-Walker}
+
+\subsubsection{Fonction \texttt{yulewalkersolver}}
+
+Le système d'équations normales de Yule-Walker s'écrit sous forme matricielle :
+\begin{equation}
+\boldsymbol{\Gamma}_M \cdot \mathbf{a} = -\boldsymbol{\gamma}_M
+\end{equation}
+où $\boldsymbol{\Gamma}_M$ est la matrice de Toeplitz des autocorrélations et $\mathbf{a}$ le vecteur des coefficients LPC. Explicitement :
+\begin{equation}
+\begin{bmatrix}
+\gamma_X[0] & \gamma_X[1] & \cdots & \gamma_X[M-1] \\
+\gamma_X[1] & \gamma_X[0] & \cdots & \gamma_X[M-2] \\
+\vdots & \vdots & \ddots & \vdots \\
+\gamma_X[M-1] & \gamma_X[M-2] & \cdots & \gamma_X[0]
+\end{bmatrix}
+\begin{bmatrix}
+a_1 \\ a_2 \\ \vdots \\ a_M
+\end{bmatrix}
+= -
+\begin{bmatrix}
+\gamma_X[1] \\ \gamma_X[2] \\ \vdots \\ \gamma_X[M]
+\end{bmatrix}
+\end{equation}
+
+La variance de l'innovation (erreur de prédiction) est donnée par :
+\begin{equation}
+\sigma_e^2 = \gamma_X[0] + \sum_{k=1}^{M} a_k \gamma_X[k]
+\end{equation}
+
+Cette relation découle directement de la décomposition de Wold et de l'orthogonalité entre l'innovation $B[n]$ et les échantillons passés $X[n-k]$.
+
+\subsubsection{Tests de validation (Checkpoint 10)}
+
+\paragraph{Test 1 : Processus AR(1)}
+Pour un processus AR(1) avec $a_1 = -0.8$ et $\sigma_b^2 = 1$, l'autocorrélation théorique est :
+\begin{equation}
+\gamma_X[p] = \frac{a_1^{|p|} \sigma_b^2}{1 - a_1^2}
+\end{equation}
+
+Le solveur doit retrouver $a_1 = -0.8$ et $\sigma_e^2 = 1.0$ à la précision machine. Les résultats obtenus confirment l'exactitude de l'implémentation.
+
+\paragraph{Test 2 : Sinusoïde à phase aléatoire}
+Une sinusoïde $X[n] = A\cos(2\pi\nu_0 n + \Phi)$ avec $\Phi$ uniforme sur $[0, 2\pi]$ a pour autocorrélation :
+\begin{equation}
+\gamma_X[p] = \frac{A^2}{2} \cos(2\pi\nu_0 p)
+\end{equation}
+
+Un modèle AR(2) devrait donner théoriquement :
+\begin{equation}
+a_1 \approx 2\cos(2\pi\nu_0), \quad a_2 \approx -1
+\end{equation}
+
+Ces valeurs correspondent aux racines complexes conjuguées du filtre AR sur le cercle unité, positionnées aux fréquences $\pm\nu_0$.
+
+\paragraph{Test 3 : Ordre supérieur}
+Lorsqu'on utilise un ordre $K$ supérieur à l'ordre réel du processus, les coefficients supplémentaires $a_{M+1}, \ldots, a_K$ doivent être proches de zéro. Ceci valide la capacité du modèle à ne pas sur-ajuster.
+
+\subsection{Application aux sons voisés et non voisés (Checkpoint 11)}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/yule_walker_voises.png}
+    \caption{Autocorrélation de l'erreur de prédiction pour différents ordres $K$. Ligne supérieure : son voisé. Ligne inférieure : son non-voisé.}
+    \label{fig:yule_walker_voises}
+\end{figure}
+
+\textbf{Observation :} Pour le son voisé, l'autocorrélation de l'erreur $\gamma_e[p]$ présente encore une structure périodique aux ordres faibles ($K \leq 4$), indiquant que la prédiction ne capture pas toute l'information du signal. Pour $K \geq 10$, l'erreur devient proche d'un bruit blanc (décroissance rapide de $\gamma_e[p]$ vers zéro). 
+
+Pour le son non-voisé, qui est déjà proche d'un bruit blanc filtré, un ordre $K=8$ suffit généralement : l'autocorrélation de l'erreur décroît rapidement, attestant que le modèle AR a bien extrait les corrélations de court terme introduites par le conduit vocal.
+
+\textbf{Interprétation physique :} Le modèle AR(K) modélise le conduit vocal (filtre tout-pôle). Un ordre $K=10$ à $F_e=10$kHz correspond environ à 5 formants (2 pôles par formant). C'est cohérent avec la physiologie de la parole : 4 à 5 résonances principales du conduit vocal.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/dsp_parametrique_voises.png}
+    \caption{Estimation spectrale paramétrique (AR) pour les sons voisés et non-voisés avec $K=10$.}
+    \label{fig:dsp_parametrique_voises}
+\end{figure}
+
+\textbf{Interprétation :} Le modèle AR(K) permet d'estimer les formants du conduit vocal (pics spectraux) à partir des seuls coefficients LPC. La DSP paramétrique est lisse contrairement au périodogramme, et les pics correspondent aux résonances du conduit vocal.
+
+Pour le son voisé, la DSP paramétrique révèle clairement l'enveloppe spectrale (formants) sans la structure harmonique fine liée au pitch. Pour le son non-voisé, le spectre est plus plat, avec des pics moins marqués reflétant un conduit vocal moins résonant (typique des consonnes fricatives).
+
+\textbf{Avantages de la modélisation AR :}
+\begin{itemize}
+    \item \textbf{Compression :} Seulement $K+1$ paramètres ($a_1, \ldots, a_K, \sigma_e^2$) au lieu de $N$ échantillons.
+    \item \textbf{Robustesse :} Moins sensible au bruit que le périodogramme.
+    \item \textbf{Résolution :} Meilleure résolution fréquentielle pour des segments courts.
+    \item \textbf{Séparation source-filtre :} Les coefficients LPC caractérisent uniquement le conduit vocal, indépendamment de la source (voisé/non-voisé).
+\end{itemize}
+
 \end{document}
