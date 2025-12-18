@@ -620,4 +620,169 @@ Pour le son voisé, la DSP paramétrique révèle clairement l'enveloppe spectra
     \item \textbf{Séparation source-filtre :} Les coefficients LPC caractérisent uniquement le conduit vocal, indépendamment de la source (voisé/non-voisé).
 \end{itemize}
 
+%==============================================================================
+% SÉANCE 4
+%==============================================================================
+
+\section{Séance 4 : Codage, Décodage et Effets sur la Parole}
+
+\subsection{Analyse d'un tronçon}
+
+L'analyse d'un tronçon de signal consiste à extraire les paramètres du modèle source-filtre :
+\begin{itemize}
+    \item \textbf{Pitch $\nu_0$} : Fréquence fondamentale (si voisé) ou indicateur non-voisé ($-1$).
+    \item \textbf{Variance $\sigma_e^2$} : Énergie de l'excitation.
+    \item \textbf{Coefficients LPC $a_1, \ldots, a_M$} : Caractéristiques du conduit vocal.
+\end{itemize}
+
+\subsubsection{Détection du pitch}
+
+Le pitch est détecté via l'autocorrélation normalisée du signal. Pour un signal voisé, l'autocorrélation présente un pic secondaire marqué à la position $T_0 = 1/F_0$ correspondant à la période fondamentale.
+
+\textbf{Algorithme :}
+\begin{enumerate}
+    \item Calculer l'autocorrélation normalisée $\rho[p] = \gamma_X[p] / \gamma_X[0]$.
+    \item Rechercher le maximum de $\rho[p]$ dans l'intervalle $[p_{\min}, p_{\max}]$ correspondant à $F_0 \in [F_{\min}, F_{\max}]$ (typiquement 100-400 Hz pour la parole).
+    \item Si ce maximum dépasse un seuil (typiquement 0.3), le signal est voisé et $\nu_0 = 1/T_0$.
+    \item Sinon, le signal est non-voisé : retourner $-1$.
+\end{enumerate}
+
+\subsubsection{Fonction d'analyse complète}
+
+La fonction \texttt{blockanalysis} combine :
+\begin{itemize}
+    \item Détection voisé/non-voisé via \texttt{pitchdetector}.
+    \item Résolution des équations de Yule-Walker pour obtenir les coefficients LPC.
+    \item Calcul de la variance de l'innovation $\sigma_e^2$.
+\end{itemize}
+
+\subsection{Synthèse d'un tronçon}
+
+La synthèse reconstruit un signal à partir des paramètres extraits :
+
+\begin{equation}
+Y[n] = -\sum_{k=1}^{M} a_k Y[n-k] + E[n]
+\end{equation}
+
+où l'excitation $E[n]$ dépend du caractère voisé/non-voisé :
+\begin{itemize}
+    \item \textbf{Voisé :} Train d'impulsions de période $T_0 = 1/\nu_0$, amplitude $\sqrt{\sigma_e^2 \cdot T_0}$.
+    \item \textbf{Non-voisé :} Bruit blanc gaussien de variance $\sigma_e^2$.
+\end{itemize}
+
+Le filtre de synthèse est le filtre tout-pôle :
+\begin{equation}
+H(z) = \frac{1}{1 + \sum_{k=1}^{M} a_k z^{-k}}
+\end{equation}
+
+\subsection{Validation sur signaux connus (Checkpoint 12)}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/checkpoint12_analyse_synthese.png}
+    \caption{Comparaison original/synthétisé pour un tronçon voisé (haut) et non-voisé (bas). De gauche à droite : signal temporel, autocorrélation, DSP.}
+    \label{fig:checkpoint12}
+\end{figure}
+
+\textbf{Observations :}
+\begin{itemize}
+    \item \textbf{Signal voisé :} Le pitch est correctement détecté ($F_0 \approx 217$ Hz). L'autocorrélation du signal synthétisé présente la même structure périodique que l'original. La DSP conserve l'enveloppe spectrale (formants) tout en présentant une structure harmonique cohérente.
+    
+    \item \textbf{Signal non-voisé :} Correctement classifié comme non-voisé. L'autocorrélation décroît rapidement vers zéro dans les deux cas. La DSP du signal synthétisé reproduit l'enveloppe spectrale de l'original.
+\end{itemize}
+
+\subsection{Traitement d'un signal complet (Checkpoint 13)}
+
+Pour traiter un signal de longue durée, on utilise une approche par tronçons avec recouvrement :
+
+\subsubsection{Encodage LPC}
+\begin{enumerate}
+    \item Découper le signal en tronçons de $N=256$ échantillons avec recouvrement de 50\%.
+    \item Pour chaque tronçon, appliquer \texttt{blockanalysis} → (pitch, $\sigma_e^2$, $\mathbf{a}$).
+    \item Stocker les paramètres pour transmission/stockage.
+\end{enumerate}
+
+\subsubsection{Décodage LPC avec Overlap-Add}
+\begin{enumerate}
+    \item Pour chaque ensemble de paramètres, synthétiser un tronçon via \texttt{blocksynthesis}.
+    \item Appliquer une fenêtre de Hann au tronçon synthétisé.
+    \item Reconstruire le signal par overlap-add (somme pondérée des tronçons chevauchants).
+\end{enumerate}
+
+La fenêtre de Hann avec recouvrement 50\% garantit une reconstruction parfaite (somme des fenêtres = 1) et évite les discontinuités aux jonctions de tronçons.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/checkpoint13_lpc_complet.png}
+    \caption{Analyse/synthèse LPC d'un signal voisé complet. Haut : signaux temporels. Milieu : spectrogrammes. Bas : DSP et erreur de reconstruction.}
+    \label{fig:checkpoint13}
+\end{figure}
+
+\textbf{Observations :}
+\begin{itemize}
+    \item Le spectrogramme du signal synthétisé conserve la structure harmonique de l'original.
+    \item Les formants (bandes horizontales) sont bien préservés.
+    \item L'erreur de reconstruction est significative en amplitude mais la qualité perceptuelle reste acceptable.
+    \item Le SNR de reconstruction est relativement faible car le LPC ne préserve pas la phase exacte du signal, seulement son enveloppe spectrale.
+\end{itemize}
+
+\textbf{Taux de compression :} Pour $N=256$, $M=10$ et $F_e=10$ kHz :
+\begin{itemize}
+    \item Signal original : 256 échantillons (16 bits) = 512 octets/tronçon.
+    \item Paramètres LPC : 1 pitch + 1 variance + 10 coefficients = 12 valeurs (quantifiées) $\approx$ 48 octets.
+    \item Taux de compression : $\approx 10:1$.
+\end{itemize}
+
+\subsection{Effets sur la parole}
+
+Le modèle source-filtre permet de modifier indépendamment la source (pitch) et le filtre (formants), ouvrant la voie à de nombreux effets audio.
+
+\subsubsection{Changement de tonalité (Pitch Shifting)}
+
+En multipliant le pitch par un facteur $\alpha$ :
+\begin{itemize}
+    \item $\alpha > 1$ : Voix plus aiguë (sans changer la durée).
+    \item $\alpha < 1$ : Voix plus grave.
+\end{itemize}
+
+L'avantage du LPC est que les formants (coefficients $a_k$) restent inchangés, évitant l'effet « chipmunk » des méthodes naïves de pitch shifting.
+
+\subsubsection{Voix chuchotée (Whisper)}
+
+On force l'excitation à être un bruit blanc pour tous les tronçons (pitch = $-1$), même ceux initialement voisés. L'énergie est réduite (facteur 0.3) pour simuler le caractère atténué du chuchotement.
+
+\subsubsection{Voix robotique}
+
+On impose un pitch fixe $\nu_0^{\text{robot}}$ constant pour tous les tronçons, indépendamment du pitch original. Cela produit une voix monotone caractéristique des robots de science-fiction.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/effets_lpc.png}
+    \caption{Spectrogrammes des différents effets. Haut : Original, Pitch +50\% (aigu), Pitch -30\% (grave). Bas : LPC standard, Chuchotement, Voix robot.}
+    \label{fig:effets_lpc}
+\end{figure}
+
+\textbf{Analyse des spectrogrammes :}
+\begin{itemize}
+    \item \textbf{Pitch +50\% :} Les harmoniques sont plus rapprochées (plus de raies par unité de fréquence). L'enveloppe spectrale (formants) reste identique.
+    
+    \item \textbf{Pitch -30\% :} Les harmoniques sont plus espacées. La voix semble plus grave sans modification des formants.
+    
+    \item \textbf{Chuchotement :} Disparition complète de la structure harmonique (plus de raies). Le spectre devient continu, caractéristique d'une excitation par bruit blanc. Les formants restent visibles comme des bandes d'énergie diffuses.
+    
+    \item \textbf{Voix robot :} Structure harmonique très régulière avec un pitch constant. Les formants varient toujours dans le temps (articulation préservée), mais la mélodie naturelle de la parole disparaît.
+\end{itemize}
+
+\subsection{Conclusion}
+
+Le codage LPC (Linear Predictive Coding) offre un cadre puissant pour :
+\begin{itemize}
+    \item \textbf{Compression :} Réduction drastique du débit (facteur 10) tout en préservant l'intelligibilité.
+    \item \textbf{Analyse :} Extraction des caractéristiques prosodiques (pitch) et spectrales (formants).
+    \item \textbf{Synthèse :} Génération de parole artificielle à partir de paramètres.
+    \item \textbf{Transformation :} Modification créative de la voix (pitch shifting, vocoder, etc.).
+\end{itemize}
+
+Cette technique, développée dans les années 1970, reste aujourd'hui à la base de nombreuses normes de codage (GSM, VoIP) et d'applications créatives (auto-tune, vocoders musicaux).
+
 \end{document}
